@@ -6,7 +6,10 @@ import logging
 import sys
 import traceback
 
-from metaappscriptsdk.logger.custom_fluent import FluentHandler, FluentRecordFormatter
+import logstash
+from logstash import formatter as logstash_formatter
+
+import metaappscriptsdk
 
 # http://stackoverflow.com/questions/11029717/how-do-i-disable-log-messages-from-the-requests-library
 # Отключаем логи от бибилиотеки requests
@@ -33,16 +36,8 @@ def create_logger(service_id=None, debug=True):
     root_logger.addHandler(ch)
 
     if not debug:
-        custom_format = {
-            'srv': service_id,
-            'host': '%(hostname)s',
-            'type': '%(levelname)s',
-            'stack_trace': '%(exc_text)s'
-        }
-
-        h = FluentHandler('es.metaappscript', host='code.harpoon.lan', port=8899, verbose=False)
-        formatter = FluentRecordFormatter(custom_format)
-        h.setFormatter(formatter)
+        h = logstash.TCPLogstashHandler(host='192.168.3.27', port=24224)
+        h.setFormatter(LogstashFormatter(message_type="logstash", tags=None, fqdn=True, service_id=service_id, debug=debug))
         root_logger.addHandler(h)
 
 
@@ -84,3 +79,49 @@ class StdoutFormatter(logging.Formatter, object):
                 s = s + record.exc_text.decode(sys.getfilesystemencoding(),
                                                'replace')
         return s
+
+
+class LogstashFormatter(logstash_formatter.LogstashFormatterBase):
+    def __init__(self, message_type='logstash', tags=None, fqdn=False, service_id='unknown', debug=False):
+        super().__init__(message_type, tags, fqdn)
+        self.service_id = service_id
+        self.debug = debug
+
+    def format(self, record):
+        # Create message dict
+        context = record.context if hasattr(record, 'context') else {}
+        context.update(metaappscriptsdk.logger.LOGGER_ENTITY)
+        context.setdefault('srv', self.service_id)
+
+        if record.exc_info:
+            context.update(self.format_exception(record))
+
+        message = {
+            "message": record.getMessage(),
+            "context": context,
+            "level": record.levelno,
+            "level_name": record.levelname,
+            "channel": "es.metaappscript",
+            "extra": {}
+        }
+
+        return self.serialize(message)
+
+    def formatException(self, record):
+        """
+        Format and return the specified exception information as a string.
+        :type record logging.LogRecord
+        :rtype: dict
+        """
+        if record.exc_info is None:
+            return {}
+
+        (exc_type, exc_message, trace) = record.exc_info
+
+        return {
+            'e': {
+                'class': str(exc_type.__name__),  # ZeroDivisionError
+                'message': str(exc_message),  # integer division or modulo by zero
+                'trace': list(traceback.format_tb(trace)),
+            }
+        }
