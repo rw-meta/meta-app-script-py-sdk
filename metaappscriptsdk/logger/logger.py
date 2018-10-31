@@ -2,8 +2,12 @@ import logging
 
 from metaappscriptsdk.logger import LOGGER_ENTITY
 
-def decorator(func):
+def preprocessing(func):
     def wrapper(self, msg, context=None):
+        """ Этот декоратор занимается предобработкой входных параметров:
+            1. Проверяет context на None.
+            2. Добавляет к msg имя класса объекта ошибки. Например: msg + ModuleNotFoundError
+         """
         if context is None:
             context = {}
 
@@ -32,22 +36,23 @@ class Logger:
     def remove_entity(self, key):
         LOGGER_ENTITY.pop(key, None)
 
-    @decorator
-    def info(self, msg, context):
+    def info(self, msg, context=None):
+        if context is None:
+            context = {}
         logging.info(msg, extra={'context': context})
 
-    @decorator
+    @preprocessing
     def warning(self, msg, context):
         logging.warning(msg, extra={'context': context})
 
-    @decorator
+    @preprocessing
     def error(self, msg, context):
         logging.error(msg, extra={'context': context})
 
-    @decorator
+    @preprocessing
     def critical(self, msg, context):
         logging.critical(msg, extra={'context': context})
 
-    @decorator
+    @preprocessing
     def exception(self, msg, context):
         logging.exception(msg, extra={'context': context})
