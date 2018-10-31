@@ -2,6 +2,21 @@ import logging
 
 from metaappscriptsdk.logger import LOGGER_ENTITY
 
+def decorator(func):
+    def wrapper(self, msg, context=None):
+        if context is None:
+            context = {}
+
+        error_obj = context.get('e')
+        if isinstance(error_obj, Exception):
+            try:
+                msg = msg + ' ' + str(error_obj.__class__.__name__)
+            except:
+                pass
+
+
+        return func(self, msg, context)
+    return wrapper
 
 class Logger:
     """
@@ -17,27 +32,22 @@ class Logger:
     def remove_entity(self, key):
         LOGGER_ENTITY.pop(key, None)
 
-    def info(self, msg, context=None):
-        if context is None:
-            context = {}
+    @decorator
+    def info(self, msg, context):
         logging.info(msg, extra={'context': context})
 
-    def warning(self, msg, context=None):
-        if context is None:
-            context = {}
+    @decorator
+    def warning(self, msg, context):
         logging.warning(msg, extra={'context': context})
 
-    def error(self, msg, context=None):
-        if context is None:
-            context = {}
+    @decorator
+    def error(self, msg, context):
         logging.error(msg, extra={'context': context})
 
-    def critical(self, msg, context=None):
-        if context is None:
-            context = {}
+    @decorator
+    def critical(self, msg, context):
         logging.critical(msg, extra={'context': context})
 
-    def exception(self, msg, context=None):
-        if context is None:
-            context = {}
+    @decorator
+    def exception(self, msg, context):
         logging.exception(msg, extra={'context': context})
